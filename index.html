@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>福岡市 授乳室・ミルクスポットマップ 🍼</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif; background: #f7f7f5; color: #2c2c2a; }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid #e5e5e2;
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    header h1 { font-size: 16px; font-weight: 600; }
+    header p  { font-size: 12px; color: #888; margin-top: 2px; }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      padding: 10px 16px;
+      background: #fff;
+      border-bottom: 1px solid #e5e5e2;
+      overflow-x: auto;
+    }
+    .filter-btn {
+      font-size: 12px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      border: 1px solid #d3d1c7;
+      background: #fff;
+      color: #5f5e5a;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .filter-btn.active {
+      background: #1D9E75;
+      border-color: #1D9E75;
+      color: #fff;
+    }
+
+    #map { width: 100%; height: calc(100vh - 180px); }
+
+    .info-panel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      background: #fff;
+      border-top: 1px solid #e5e5e2;
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+      z-index: 2000;
+      max-height: 50vh;
+      overflow-y: auto;
+    }
+    .info-panel.open { transform: translateY(0); }
+
+    .info-handle {
+      width: 36px; height: 4px;
+      background: #d3d1c7;
+      border-radius: 2px;
+      margin: 0 auto 12px;
+    }
+    .info-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .info-address { font-size: 13px; color: #888; margin-bottom: 10px; }
+
+    .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .badge {
+      font-size: 11px; font-weight: 500;
+      padding: 4px 10px; border-radius: 20px;
+    }
+    .badge-green { background: #E1F5EE; color: #0F6E56; }
+    .badge-blue  { background: #E6F1FB; color: #185FA5; }
+
+    .info-row { font-size: 13px; color: #5f5e5a; margin-bottom: 4px; }
+    .info-note { font-size: 12px; color: #888; margin-top: 8px; border-top: 1px solid #f0f0ee; padding-top: 8px; }
+
+    .close-btn {
+      position: absolute; top: 14px; right: 16px;
+      font-size: 20px; color: #aaa; cursor: pointer;
+      background: none; border: none; line-height: 1;
+    }
+
+    .count-badge {
+      font-size: 11px;
+      background: #f1efe8;
+      color: #5f5e5a;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🍼 福岡市 授乳室・ミルクスポットマップ</h1>
+  <p>赤ちゃんのミルクが作れる場所・授乳室のある施設</p>
+</header>
+
+<div class="filters">
+  <button class="filter-btn active" onclick="filterSpots('all', this)">
+    すべて <span class="count-badge" id="count-all">10</span>
+  </button>
+  <button class="filter-btn" onclick="filterSpots('oyu', this)">
+    🔥 調乳用お湯あり <span class="count-badge" id="count-oyu"></span>
+  </button>
+  <button class="filter-btn" onclick="filterSpots('nursing', this)">
+    🤱 授乳室あり <span class="count-badge" id="count-nursing"></span>
+  </button>
+</div>
+
+<div id="map"></div>
+
+<div class="info-panel" id="info-panel">
+  <button class="close-btn" onclick="closePanel()">×</button>
+  <div class="info-handle"></div>
+  <div class="info-name"  id="info-name"></div>
+  <div class="info-address" id="info-address"></div>
+  <div class="badges" id="info-badges"></div>
+  <div class="info-row" id="info-hours"></div>
+  <div class="info-note" id="info-note"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* =====================
+   施設データ
+   ===================== */
+const spots = [
+  {
+    name: "キャナルシティ博多",
+    address: "福岡市博多区住吉1-2-22",
+    lat: 33.5887, lng: 130.4112,
+    hours: "10:00〜21:00",
+    oyu: true, nursing: true,
+    note: "ノースビルB1F・サウスビルB1Fに調乳機設置。個室授乳室あり。"
+  },
+  {
+    name: "天神地下街",
+    address: "福岡市中央区天神2丁目",
+    lat: 33.5909, lng: 130.3998,
+    hours: "10:00〜20:00",
+    oyu: true, nursing: true,
+    note: "調乳機（約80度）完備。鍵付き個室授乳室2部屋、ベビーカーで入れる自動ドア。"
+  },
+  {
+    name: "ソラリアプラザ",
+    address: "福岡市中央区天神2-2-43",
+    lat: 33.5903, lng: 130.4010,
+    hours: "10:00〜20:30",
+    oyu: false, nursing: true,
+    note: "5F 授乳室あり。"
+  },
+  {
+    name: "岩田屋本店",
+    address: "福岡市中央区天神2-5-35",
+    lat: 33.5913, lng: 130.3985,
+    hours: "10:00〜20:00",
+    oyu: false, nursing: true,
+    note: "本館6F・新館7F に授乳室あり。"
+  },
+  {
+    name: "大丸福岡天神店",
+    address: "福岡市中央区天神1-4-1",
+    lat: 33.5922, lng: 130.3978,
+    hours: "10:00〜20:00",
+    oyu: false, nursing: true,
+    note: "本館7F 授乳室あり。"
+  },
+  {
+    name: "福岡パルコ",
+    address: "福岡市中央区天神2-11-1",
+    lat: 33.5895, lng: 130.3996,
+    hours: "10:00〜20:30",
+    oyu: false, nursing: true,
+    note: "6F 授乳室あり。"
+  },
+  {
+    name: "イオンモール福岡",
+    address: "福岡市早良区百道浜2-4-8",
+    lat: 33.5958, lng: 130.3513,
+    hours: "10:00〜21:00",
+    oyu: true, nursing: true,
+    note: "2F授乳室に調乳設備あり。おむつ自動販売機も設置。"
+  },
+  {
+    name: "マリノアシティ福岡",
+    address: "福岡市西区小戸2-12-30",
+    lat: 33.5845, lng: 130.3215,
+    hours: "10:00〜20:00",
+    oyu: true, nursing: true,
+    note: "授乳室・調乳用お湯完備。"
+  },
+  {
+    name: "博多マルイ",
+    address: "福岡市博多区博多駅中央街6-12",
+    lat: 33.5898, lng: 130.4195,
+    hours: "11:00〜21:00",
+    oyu: false, nursing: true,
+    note: "授乳室あり（詳細は施設窓口へ）。"
+  },
+  {
+    name: "VIORO",
+    address: "福岡市中央区天神2-10-3",
+    lat: 33.5892, lng: 130.3992,
+    hours: "11:00〜21:00",
+    oyu: false, nursing: true,
+    note: "6F 授乳室あり。"
+  }
+];
+
+/* =====================
+   地図の初期化
+   ===================== */
+const map = L.map('map').setView([33.5904, 130.4017], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+}).addTo(map);
+
+/* =====================
+   ピン生成
+   ===================== */
+function pinColor(spot) {
+  if (spot.oyu && spot.nursing) return '#1D9E75';
+  if (spot.nursing) return '#378ADD';
+  return '#E24B4A';
+}
+
+function makeIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8]
+  });
+}
+
+let allMarkers = [];
+
+spots.forEach(spot => {
+  const marker = L.marker([spot.lat, spot.lng], { icon: makeIcon(pinColor(spot)) }).addTo(map);
+  marker.spotData = spot;
+  marker.on('click', () => showPanel(spot));
+  allMarkers.push(marker);
+});
+
+/* バッジカウント */
+document.getElementById('count-all').textContent     = spots.length;
+document.getElementById('count-oyu').textContent     = spots.filter(s => s.oyu).length;
+document.getElementById('count-nursing').textContent = spots.filter(s => s.nursing).length;
+
+/* =====================
+   フィルター
+   ===================== */
+function filterSpots(type, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  allMarkers.forEach(m => {
+    const s = m.spotData;
+    const show = type === 'all' ? true
+               : type === 'oyu' ? s.oyu
+               : s.nursing;
+    show ? map.addLayer(m) : map.removeLayer(m);
+  });
+  closePanel();
+}
+
+/* =====================
+   情報パネル
+   ===================== */
+function showPanel(spot) {
+  document.getElementById('info-name').textContent    = spot.name;
+  document.getElementById('info-address').textContent = '📍 ' + spot.address;
+  document.getElementById('info-hours').textContent   = '🕐 営業時間：' + spot.hours;
+  document.getElementById('info-note').textContent    = spot.note;
+
+  const badges = document.getElementById('info-badges');
+  badges.innerHTML = '';
+  if (spot.oyu)     badges.innerHTML += '<span class="badge badge-green">🔥 調乳用お湯あり</span>';
+  if (spot.nursing) badges.innerHTML += '<span class="badge badge-blue">🤱 授乳室あり</span>';
+
+  document.getElementById('info-panel').classList.add('open');
+}
+
+function closePanel() {
+  document.getElementById('info-panel').classList.remove('open');
+}
+
+/* パネル外タップで閉じる */
+map.on('click', closePanel);
+</script>
+</body>
+</html>
