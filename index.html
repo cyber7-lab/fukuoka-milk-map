@@ -47,7 +47,6 @@
 
     #map { width: 100%; height: calc(100vh - 130px); }
 
-    /* 現在地ボタン */
     #locate-btn {
       position: fixed;
       bottom: 100px;
@@ -73,7 +72,6 @@
       50%      { box-shadow: 0 2px 16px rgba(29,158,117,0.5); }
     }
 
-    /* 情報パネル */
     .info-panel {
       position: fixed;
       bottom: 0; left: 0; right: 0;
@@ -145,7 +143,6 @@
 
 <div id="map"></div>
 
-<!-- 現在地ボタン -->
 <button id="locate-btn" onclick="locateMe()" title="現在地を表示">📍</button>
 
 <div class="info-panel" id="info-panel">
@@ -160,9 +157,6 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-/* =====================
-   施設データ
-   ===================== */
 const spots = [
   {
     name: "キャナルシティ博多",
@@ -243,17 +237,21 @@ const spots = [
     hours: "11:00〜21:00",
     oyu: false, nursing: true,
     note: "6F 授乳室あり。"
+  },
+  {
+    name: "イオン大野城店 3F",
+    address: "福岡県大野城市錦町4-1-1",
+    lat: 33.537802, lng: 130.476199,
+    hours: "9:00〜21:00（専門店フロアに準ずる）",
+    oyu: true, nursing: true,
+    note: "3F 女性専用の授乳室あり。おむつダストボックス・オムツ替えコーナー4台あり。調乳用のお湯がなければ近くの会計カウンターのスタッフさんへご相談ください。"
   }
 ];
 
-/* =====================
-   MapTiler地図の初期化
-   ===================== */
 const MAPTILER_KEY = '76xZqKHWVz05iv15FNVy';
 
 const map = L.map('map', { zoomControl: false }).setView([33.5904, 130.4017], 13);
 
-// MapTilerタイル（Streets スタイル：Googleマップに近いデザイン）
 L.tileLayer(
   `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`,
   {
@@ -264,12 +262,8 @@ L.tileLayer(
   }
 ).addTo(map);
 
-// ズームコントロールを右下に
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 
-/* =====================
-   ピン生成
-   ===================== */
 function pinColor(spot) {
   if (spot.oyu && spot.nursing) return '#1D9E75';
   if (spot.nursing) return '#378ADD';
@@ -294,14 +288,10 @@ spots.forEach(spot => {
   allMarkers.push(marker);
 });
 
-/* バッジカウント */
 document.getElementById('count-all').textContent     = spots.length;
 document.getElementById('count-oyu').textContent     = spots.filter(s => s.oyu).length;
 document.getElementById('count-nursing').textContent = spots.filter(s => s.nursing).length;
 
-/* =====================
-   フィルター
-   ===================== */
 function filterSpots(type, btn) {
   document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -315,9 +305,6 @@ function filterSpots(type, btn) {
   closePanel();
 }
 
-/* =====================
-   情報パネル
-   ===================== */
 function showPanel(spot) {
   document.getElementById('info-name').textContent    = spot.name;
   document.getElementById('info-address').textContent = '📍 ' + spot.address;
@@ -338,9 +325,6 @@ function closePanel() {
 
 map.on('click', closePanel);
 
-/* =====================
-   現在地ボタン
-   ===================== */
 let locationMarker = null;
 let locationCircle = null;
 
@@ -361,11 +345,9 @@ function locateMe() {
       const lng = pos.coords.longitude;
       const acc = pos.coords.accuracy;
 
-      // 既存の現在地マーカーを削除
       if (locationMarker) map.removeLayer(locationMarker);
       if (locationCircle) map.removeLayer(locationCircle);
 
-      // 現在地ピン
       locationMarker = L.circleMarker([lat, lng], {
         radius: 8,
         fillColor: '#4A90E2',
@@ -374,7 +356,6 @@ function locateMe() {
         weight: 2.5
       }).addTo(map).bindPopup('現在地').openPopup();
 
-      // 精度円
       locationCircle = L.circle([lat, lng], {
         radius: acc,
         color: '#4A90E2',
